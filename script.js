@@ -245,9 +245,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // ດັກຈັບ Event ເມື່ອຜູ້ໃຊ້ກົດ Link ຈາກ Email ກູ້ຄືນລະຫັດ
             supabaseClient.auth.onAuthStateChange((event, session) => {
-                if (event === 'PASSWORD_RECOVERY') {
+                if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && window.location.hash.includes('type=recovery'))) {
                     console.log('User clicked password recovery link');
-                    openNewPasswordModal();
+                    // ໜ່ວງເວລາເລັກນ້ອຍເພື່ອໃຫ້ UI ພ້ອມ
+                    setTimeout(() => {
+                        openNewPasswordModal();
+                    }, 500);
                 }
             });
             
@@ -476,7 +479,12 @@ async function sendPasswordReset() {
     if (!email) return alert(t('alert_no_user'));
 
     try {
-        const redirectUrl = window.location.origin + window.location.pathname;
+        // ປັບ URL ໃຫ້ສະອາດ (ລົບ index.html ອອກຖ້າມີ) ເພື່ອໃຫ້ກົງກັບການຕັ້ງຄ່າໃນ Supabase
+        let redirectUrl = window.location.origin + window.location.pathname;
+        if (redirectUrl.endsWith('index.html')) {
+            redirectUrl = redirectUrl.replace('index.html', '');
+        }
+        
         console.log('Requesting reset with redirect to:', redirectUrl);
 
         const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
