@@ -82,6 +82,7 @@ const translations = {
         alert_resume_error: 'ບໍ່ສາມາດສືບຕໍ່ວຽກໄດ້',
         alert_complete_error: 'ບໍ່ສາມາດບັນທຶກການສຳເລັດໄດ້',
         action_start_repair: 'ເລີ່ມຊ້ອມແປງ',
+        alert_force_password_change: 'ທ່ານຕ້ອງປ່ຽນລະຫັດຜ່ານກ່ອນເຂົ້າສູ່ລະບົບ.',
         action_reject: 'ປະຕິເສດວຽກ',
         action_pause: 'ຢຸດຊົ່ວຄາວ',
         action_resume: 'ສືບຕໍ່ແປງ',
@@ -168,6 +169,7 @@ const translations = {
         alert_resume_error: 'Unable to resume job',
         alert_complete_error: 'Unable to complete job',
         action_start_repair: 'Start Repair',
+        alert_force_password_change: 'You must change your password before logging in.',
         action_reject: 'Reject Job',
         action_pause: 'Pause',
         action_resume: 'Resume Repair',
@@ -253,7 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }, 500);
 
                     // Clear hash ຈາກ URL ເພື່ອບໍ່ໃຫ້ Modal ເປີດຄືນເມື່ອ Refresh ໜ້າເວັບ
-                    if (window.history.replaceState) {
+                    if (window.history.replaceState && window.location.hash) { // ໃຫ້ແນ່ໃຈວ່າມີ hash ກ່ອນລຶບ
                         window.history.replaceState(null, null, window.location.pathname);
                     }
                 }
@@ -377,7 +379,8 @@ async function login() {
             id: data.user.id,
             email: data.user.email,
             name: profile.full_name || data.user.email,
-            role: profile.role 
+            role: profile.role,
+            force_password_change: profile.force_password_change // ເພີ່ມ field ໃໝ່
         };
 
         document.getElementById('loginSection').classList.add('hidden');
@@ -387,6 +390,15 @@ async function login() {
 
         if (currentUser.role === 'reporter') {
             document.getElementById('reporterForm').classList.remove('hidden');
+        }
+
+        // ກວດສອບວ່າຕ້ອງບັງຄັບປ່ຽນລະຫັດຜ່ານຫຼືບໍ່
+        if (currentUser.force_password_change) {
+            alert(t('alert_force_password_change'));
+            openNewPasswordModal();
+            document.getElementById('loginSection').classList.remove('hidden'); // ໃຫ້ເຫັນໜ້າ Login ຢູ່
+            document.getElementById('appSection').classList.add('hidden'); // ເຊື່ອງໜ້າ App
+            return; // ຢຸດການເຮັດວຽກຂອງ Login ປົກກະຕິ
         }
         
         await loadIssues();
@@ -437,7 +449,8 @@ async function checkSession() {
                     id: session.user.id,
                     email: session.user.email,
                     name: profile.full_name || session.user.email,
-                    role: profile.role 
+                    role: profile.role,
+                    force_password_change: profile.force_password_change // ເພີ່ມ field ໃໝ່
                 };
 
                 document.getElementById('loginSection').classList.add('hidden');
@@ -447,6 +460,15 @@ async function checkSession() {
 
                 if (currentUser.role === 'reporter') {
                     document.getElementById('reporterForm').classList.remove('hidden');
+                }
+
+                // ກວດສອບວ່າຕ້ອງບັງຄັບປ່ຽນລະຫັດຜ່ານຫຼືບໍ່
+                if (currentUser.force_password_change) {
+                    console.log('User needs to change password.');
+                    openNewPasswordModal();
+                    document.getElementById('loginSection').classList.remove('hidden'); // ໃຫ້ເຫັນໜ້າ Login ຢູ່
+                    document.getElementById('appSection').classList.add('hidden'); // ເຊື່ອງໜ້າ App
+                    return; // ຢຸດການເຮັດວຽກຂອງ Session ປົກກະຕິ
                 }
                 
                 await loadIssues();
@@ -521,13 +543,34 @@ async function updatePassword() {
     }
     
     try {
-        const { error } = await supabaseClient.auth.updateUser({
+        const { data: authData, error } = await supabaseClient.auth.updateUser({
             password: newPassword
         });
 
         if (error) throw error;
 
-        alert('✅ ປ່ຽນລະຫັດຜ່ານໃໝ່ສຳເລັດແລ້ວ!');
+        // ຫຼັງຈາກປ່ຽນລະຫັດຜ່ານສຳເລັດ, ໃຫ້ອັບເດດ flag force_password_change ໃນ profiles table
+        // ດຶງ user ID ຈາກ session ເພາະ currentUser ອາດຈະບໍ່ທັນໄດ້ຖືກຕັ້ງຄ່າສົມບູນ
+        const { data: { user }, error: getUserError } = await supabaseClient.auth.getUser();
+        if (getUserError || !user) {
+            console.error('Could not get user for profile update after password change:', getUserError);
+            alert('✅ ປ່ຽນລະຫັດຜ່ານໃໝ່ສຳເລັດແລ້ວ! ແຕ່ບໍ່ສາມາດອັບເດດສະຖານະໃນ Profile ໄດ້. ກະລຸນາເຂົ້າສູ່ລະບົບ.');
+            closeNewPasswordModal();
+            await logout();
+            return;
+        }
+
+        const { error: profileUpdateError } = await supabaseClient
+            .from('profiles')
+            .update({ force_password_change: false })
+            .eq('id', user.id);
+
+        if (profileUpdateError) {
+            console.error('Error updating force_password_change flag:', profileUpdateError);
+            alert('✅ ປ່ຽນລະຫັດຜ່ານໃໝ່ສຳເລັດແລ້ວ! ແຕ່ມີບັນຫາໃນການອັບເດດ Profile. ກະລຸນາເຂົ້າສູ່ລະບົບ.');
+        }
+
+        alert('✅ ປ່ຽນລະຫັດຜ່ານໃໝ່ສຳເລັດແລ້ວ! ທ່ານສາມາດເຂົ້າສູ່ລະບົບໄດ້ເລີຍ.');
         closeNewPasswordModal();
         // ຫຼັງຈາກປ່ຽນສຳເລັດ, ໃຫ້ logout ອອກກ່ອນເພື່ອໃຫ້ຜູ້ໃຊ້ login ໃໝ່ດ້ວຍລະຫັດທີ່ຖືກຕ້ອງ
         await logout();
