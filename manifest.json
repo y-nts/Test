@@ -1,20 +1,24 @@
 {
   "name": "Issue Reporting System",
   "short_name": "RepairApp",
+  "id": "/repair-app-v1",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#ffffff",
+  "theme_color": "#2563eb",
   "description": "ລະບົບແຈ້ງບັນຫາ ແລະ ສ້ອມແປງ",
   "icons": [
     {
       "src": "icon.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "icon.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
