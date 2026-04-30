@@ -244,13 +244,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             await checkSession();
 
             // ດັກຈັບ Event ເມື່ອຜູ້ໃຊ້ກົດ Link ຈາກ Email ກູ້ຄືນລະຫັດ
-            supabaseClient.auth.onAuthStateChange((event, session) => {
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && window.location.hash.includes('type=recovery'))) {
                     console.log('User clicked password recovery link');
                     // ໜ່ວງເວລາເລັກນ້ອຍເພື່ອໃຫ້ UI ພ້ອມ
                     setTimeout(() => {
                         openNewPasswordModal();
                     }, 500);
+
+                    // Clear hash ຈາກ URL ເພື່ອບໍ່ໃຫ້ Modal ເປີດຄືນເມື່ອ Refresh ໜ້າເວັບ
+                    if (window.history.replaceState) {
+                        window.history.replaceState(null, null, window.location.pathname);
+                    }
                 }
             });
             
