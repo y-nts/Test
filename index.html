@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="lo"> 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ລະບົບແຈ້ງບັນຫາ ແລະ ສ້ອມແປງ</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="manifest" href="manifest.json">
+    <!-- External Libraries for Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+    <!-- ລະບົບເຂົ້າສູ່ລະບົບ (Login Section) -->
+    <div id="loginSection" class="login-box">
+        <h2 data-lang="login_title">ເຂົ້າສູ່ລະບົບ</h2>
+        <input type="email" id="email" data-lang-placeholder="email_placeholder" placeholder="ອີເມວ (Email)">
+        <input type="password" id="password" data-lang-placeholder="password_placeholder" placeholder="ລະຫັດຜ່ານ (Password)">
+        <button onclick="login()" data-lang="login_btn">ເຂົ້າສູ່ລະບົບ</button>
+        <div style="margin-top: 15px; text-align: center;">
+            <a href="#" onclick="openForgotPasswordModal(); return false;" data-lang="forgot_password" style="color: #3b82f6; font-size: 14px;">ລືມລະຫັດຜ່ານ?</a>
+        </div>
+    </div>
+
+    <!-- ພາກສ່ວນຫຼັກຂອງລະບົບ (Main App Section) -->
+    <div id="appSection" class="container hidden">
+        <div class="nav">
+            <div class="user-info"><span data-lang="welcome">ສະບາຍດີ</span>: <span id="displayUser"></span> (<span id="displayRole"></span>)</div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <span id="realtimeStatus" style="font-size: 12px; color: #16a34a; display: none;">
+                    <span style="display: inline-block; width: 8px; height: 8px; background: #16a34a; border-radius: 50%; margin-right: 5px; animation: pulse 2s infinite;"></span>
+                    Real-time
+                </span>
+                <select id="languageSelector" onchange="changeLanguage(this.value)" style="width: auto; padding: 5px;">
+                    <option value="lo">ພາສາລາວ</option>
+                    <option value="en">English</option>
+                </select>
+                <button style="width: auto; padding: 5px 15px; background: #64748b;" onclick="logout()" data-lang="logout">ອອກຈາກລະບົບ</button>
+            </div>
+        </div>
+
+        <div id="reporterForm" class="hidden">
+            <h3 data-lang="new_report_title">ເພີ່ມລາຍງານບັນຫາໃໝ່</h3>
+            <textarea id="issueContent" data-lang-placeholder="issue_placeholder" placeholder="ເນື້ອໃນການລາຍງານບັນຫາ..."></textarea>
+            <button onclick="addIssue()" data-lang="send_report">ສົ່ງລາຍງານ</button>
+        </div>
+
+        <div id="tabMenu" class="tab-menu">
+            <button id="tabBtnLatest" onclick="switchTab('latest')" data-lang="tab_latest">ລາຍການບັນຫາຫຼ້າສຸດ</button>
+            <button id="tabBtnHistory" onclick="switchTab('history')" data-lang="tab_history">ປະຫວັດການຊ້ອມແປງ</button>
+        </div>
+
+        <div id="latestSection">
+            <div class="table-header">
+                <h3 data-lang="latest_issues">ລາຍການບັນຫາຫຼ້າສຸດ</h3>
+                <div>
+                    <span data-lang="show">ສະແດງ</span>: 
+                    <select id="latestLimit" class="limit-select" onchange="renderIssues()">
+                        <option value="5">5 <span data-lang="rows">ແຖວ</span></option>
+                        <option value="10" selected>10 <span data-lang="rows">ແຖວ</span></option>
+                        <option value="20">20 <span data-lang="rows">ແຖວ</span></option>
+                        <option value="9999" data-lang="all">ທັງໝົດ</option>
+                    </select>
+                    <button onclick="downloadLatestPDF()" style="background: var(--danger); margin-left: 10px; padding: 8px 15px; font-size: 14px; width: auto;" data-lang="download_pdf">ດາວໂຫຼດ PDF</button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-lang="col_no">ລຳດັບ</th>
+                            <th data-lang="col_report_date">ວັນທີລາຍງານ</th>
+                            <th data-lang="col_content">ເນື້ອໃນບັນຫາ</th>
+                            <th data-lang="col_reported_by">ລາຍງານໂດຍ</th>
+                            <th data-lang="col_repair_date">ວັນທີຊ້ອມແປງ</th>
+                            <th data-lang="col_repaired_by">ຊ້ອມແປງໂດຍ</th>
+                            <th data-lang="col_manage">ຈັດການ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="issueTableBody">
+                        <!-- ຂໍ້ມູນຈະສະແດງຢູ່ນີ້ -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ປະຫວັດການຊ້ອມແປງ -->
+        <div id="historySection" class="history-section hidden">
+            <div class="table-header">
+                <h3 data-lang="history_title">ປະຫວັດການຊ້ອມແປງ</h3>
+                <div>
+                    <span data-lang="show">ສະແດງ</span>: 
+                    <select id="historyLimit" class="limit-select" onchange="renderIssues()">
+                        <option value="5" selected>5 <span data-lang="rows">ແຖວ</span></option>
+                        <option value="10">10 <span data-lang="rows">ແຖວ</span></option>
+                        <option value="20">20 <span data-lang="rows">ແຖວ</span></option>
+                        <option value="9999" data-lang="all">ທັງໝົດ</option>
+                    </select>
+                </div>
+            </div>
+            <!-- ສ່ວນດາວໂຫຼດ -->
+            <div class="export-controls">
+                <div style="display:flex; gap:10px;">
+                    <button onclick="openExportModal('excel')" style="background: var(--success); width: auto; padding: 8px 15px;" data-lang="download_excel">ດາວໂຫຼດ Excel</button>
+                    <button onclick="openExportModal('pdf')" style="background: var(--danger); width: auto; padding: 8px 15px;" data-lang="download_pdf">ດາວໂຫຼດ PDF</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-lang="col_no">ລຳດັບ</th>
+                            <th data-lang="col_report_date">ວັນທີລາຍງານ</th>
+                            <th data-lang="col_content">ເນື້ອໃນບັນຫາ</th>
+                            <th data-lang="col_reported_by">ລາຍງານໂດຍ</th>
+                            <th data-lang="col_repair_date">ວັນທີຊ້ອມແປງ</th>
+                            <th data-lang="col_repaired_by">ຊ້ອມແປງໂດຍ</th>
+                            <th data-lang="col_status">ສະຖານະ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- ຂໍ້ມູນປະຫວັດຈະສະແດງຢູ່ນີ້ -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ສຳລັບການກູ້ຄືນລະຫັດຜ່ານ -->
+    <div id="forgotPasswordModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;" data-lang="forgot_title">ກູ້ຄືນລະຫັດຜ່ານ</h3>
+            <p data-lang="forgot_desc" style="font-size: 14px; color: #64748b; margin-bottom: 15px;">ກະລຸນາປ້ອນອີເມວຂອງທ່ານ ລະບົບຈະສົ່ງລິ້ງກູ້ຄືນລະຫັດຜ່ານໄປໃຫ້</p>
+            <input type="email" id="forgotEmail" data-lang-placeholder="email_placeholder" placeholder="ອີເມວ (Email)">
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button style="background: #3b82f6;" onclick="sendPasswordReset()" data-lang="send_reset_link">ສົ່ງລິ້ງກູ້ຄືນ</button>
+                <button style="background: #64748b;" onclick="closeForgotPasswordModal()" data-lang="cancel">ຍົກເລີກ</button>
+            </div>
+        </div>
+    </div>
+    <!-- Modal ສຳລັບຕັ້ງລະຫັດຜ່ານໃໝ່ -->
+    <div id="newPasswordModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;">ຕັ້ງລະຫັດຜ່ານໃໝ່</h3>
+            <p style="font-size: 14px; color: #64748b; margin-bottom: 15px;">ໃສ່ລະຫັດຜ່ານໃໝ່ຂອງທ່ານ</p>
+            <input type="password" id="newPasswordInput" placeholder="ລະຫັດຜ່ານໃໝ່" style="margin-bottom: 10px;">
+            <input type="password" id="confirmPasswordInput" placeholder="ຢືນຢັນລະຫັດຜ່ານ">
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button style="background: #16a34a; flex: 1;" onclick="updatePassword()">ບັນທຶກ</button>
+                <button style="background: #64748b; flex: 1;" onclick="closeNewPasswordModal()">ຍົກເລີກ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ສຳລັບການປະຕິເສດ -->
+    <div id="rejectModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;" data-lang="reject_title">ລະບຸເຫດຜົນການປະຕິເສດ</h3>
+            <textarea id="modalRejectReason" data-lang-placeholder="reject_placeholder" placeholder="ກະລຸນາປ້ອນເຫດຜົນທີ່ທ່ານປະຕິເສດວຽກນີ້..." style="height: 100px;"></textarea>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button style="background: var(--danger);" onclick="confirmReject()" data-lang="confirm_reject">ຢືນຢັນການປະຕິເສດ</button>
+                <button style="background: #64748b;" onclick="closeRejectModal()" data-lang="cancel">ຍົກເລີກ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ສຳລັບການແກ້ໄຂ -->
+    <div id="editModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;" data-lang="edit_title">ແກ້ໄຂລາຍງານ</h3>
+            <textarea id="modalEditContent" data-lang-placeholder="edit_placeholder" placeholder="ເນື້ອໃນການລາຍງານບັນຫາ..." style="height: 100px;"></textarea>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button style="background: #3b82f6;" onclick="confirmEdit()" data-lang="confirm_edit">ບັນທຶກ</button>
+                <button style="background: #64748b;" onclick="closeEditModal()" data-lang="cancel">ຍົກເລີກ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ສຳລັບເລືອກວັນທີດາວໂຫຼດ -->
+    <div id="exportDateModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 style="margin-top: 0;" data-lang="select_date_range">ເລືອກຊ່ວງວັນທີ</h3>
+            <p style="font-size: 14px; color: #64748b; margin-bottom: 15px;" data-lang="date_range_desc">ກະລຸນາເລືອກວັນທີເລີ່ມຕົ້ນ ແລະ ວັນທີສິ້ນສຸດ</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 120px;">
+                    <label style="display: block; font-size: 13px; margin-bottom: 5px;"><span data-lang="start_date">ເລີ່ມວັນທີ:</span></label>
+                    <input type="date" id="exportStartDate" style="margin: 0;">
+                </div>
+                <div style="flex: 1; min-width: 120px;">
+                    <label style="display: block; font-size: 13px; margin-bottom: 5px;"><span data-lang="to">ຫາ:</span></label>
+                    <input type="date" id="exportEndDate" style="margin: 0;">
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="confirmExportBtn" style="background: #3b82f6; flex: 1;" data-lang="confirm_download">ດາວໂຫຼດ</button>
+                <button style="background: #64748b; flex: 1;" onclick="closeExportModal()" data-lang="cancel">ຍົກເລີກ</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="supabase-config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
